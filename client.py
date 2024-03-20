@@ -344,7 +344,7 @@ def main():
                   "delete <story_key> - Delete a news story (requires login)\n"
                   "exit - Exit the client\n")
         else:
-            print("\033[1;31mError: Invalid command\033[0m")
+            print("\033[1;31mError: Invalid command - type 'help' for available commandsd\033[0m")
 
 
 if __name__ == "__main__":
