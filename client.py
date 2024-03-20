@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import requests
 
 
@@ -6,6 +8,7 @@ class Client:
         self.session = requests.Session()
         self.logged_in_url = None
         print("\n\033[1mWelcome to the news aggregator client!\033[0m")
+        print("Type 'help' for a list of commands or 'exit' to close the client.")
 
     # Get list of agencies from directory service
     def get_agencies(self):
@@ -71,7 +74,7 @@ class Client:
 
         # Send post request to /api/login
         try:
-            response = self.session.post(f'http://{url}/api/login', data={'username': username, 'password': password})
+            response = self.session.post(f'https://{url}/api/login', data={'username': username, 'password': password})
         except requests.exceptions.RequestException:
             print(f"\033[1;31m✘ Login failed: unable to connect to news service @ {url}\033[0m\n")
             return
@@ -96,7 +99,7 @@ class Client:
 
         # Send post request to /api/login
         try:
-            response = self.session.post(f'http://{self.logged_in_url}/api/logout')
+            response = self.session.post(f'https://{self.logged_in_url}/api/logout')
         except requests.exceptions.RequestException:
             print(f"\033[1;31m✘ Logout failed: unable to connect to news service @ {self.logged_in_url}\033[0m\n")
             return
@@ -111,7 +114,15 @@ class Client:
         self.logged_in_url = None
 
     # Get news stories from news service(s)
-    def get_stories(self, agency_id=None, category='*', region='*', date='*'):
+    def get_stories(self, agency_id=None, category=None, region=None, date=None):
+        # If category, region or date parameters not provided or provided as none set to wildcard "*" for API request
+        if category is None:
+            category = "*"
+        if region is None:
+            region = "*"
+        if date is None:
+            date = "*"
+
         # Get list of agencies from directory service
         agencies = self.get_agencies()
 
@@ -119,13 +130,20 @@ class Client:
         if agency_id is not None:
             print(f"\033[1;34mAttempting to retrieve stories from agency with id {agency_id}\033[0m")
             agencies = [agency for agency in agencies if agency["agency_code"] == agency_id]
+            # Ensure agency is found matching id switch
+            if len(agencies) == 0:
+                print("\033[1;31m✘ No agencies found matching id provided\033[0m\n")
+                return
+
         else:
             print(f"\033[1;34mAttempting to retrieve stories from all agencies\033[0m")
+            # Ensure agency is found matching id switch
+            if len(agencies) == 0:
+                print("\033[1;31m✘ No agencies found\033[0m\n")
+                return
 
-        # Ensure agency is found matching id switch
-        if len(agencies) == 0:
-            print("\033[1;31m✘ No agencies found matching id provided\033[0m\n")
-            return
+        # Limit agencies to first 20
+        agencies = agencies[:20]
 
         # Get stories from each agency
         for agency in agencies:
@@ -142,8 +160,13 @@ class Client:
                 print(f"\033[1;31m✘ Unable to connect to news service @ {agency['url']}\033[0m")
                 continue
 
+            # Handle successful request but 0 stories returned
+            if response.status_code == 404:
+                print(f"\033[1;32m✔ 0 stories found from {agency['agency_name']} @ {agency['url']}\033[0m")
+                continue
+
             # Handle news service unable to process request
-            if response.status_code != 200:
+            if response.status_code != 200 and response.status_code != 404:
                 # Don't print response text if it is HTML not an error message
                 if response.text.startswith("<!DOCTYPE html>") or response.text.startswith("<html>"):
                     error_msg = "API returned HTML but JSON expected"
@@ -170,6 +193,9 @@ class Client:
                 print(f"\033[1;31m✘ Failed to fetch stories from news service @ {agency['url']}:"
                       f"invalid or missing keys in JSON response")
                 continue
+            except TypeError:
+                print(f"\033[1;31m✘ Failed to fetch stories from news service @ {agency['url']}: invalid JSON response")
+                continue
 
             # Notify user of number of stories found
             if len(stories) == 1:
@@ -179,11 +205,30 @@ class Client:
 
             # Display list of stories
             for story in stories:
+                # Format date
+                formats_to_try = ['%Y-%m-%d', '%d-%m-%Y', '%m-%d-%Y', '%Y/%m/%d', '%d/%m/%Y', '%m/%d/%Y']
+                formatted_date = None
+                for format_str in formats_to_try:
+                    try:
+                        date_obj = datetime.strptime(story['story_date'], format_str)
+                        formatted_date = date_obj.strftime('%d/%m/%Y')
+                    except ValueError:
+                        continue
+                    except KeyError:
+                        formatted_date = "Not in JSON data"
+                        break
+                if formatted_date is None:
+                    formatted_date = story['story_date']
+
                 try:
                     print("----------------------------------\n"
-                          f"Key: {story['key']}\nHeadline: {story['headline']}\nCategory: {story['story_cat']}\n"
-                          f"Region: {story['story_region']}\nAuthor: {story['author']}\nDate: {story['story_date']}\n"
-                          f"Details: {story['story_details']}")
+                          f"\033[1mKey:\033[0m {story['key']}\n"
+                          f"\033[1mHeadline:\033[0m {story['headline']}\n"
+                          f"\033[1mCategory:\033[0m {story['story_cat']}\n"
+                          f"\033[1mRegion:\033[0m {story['story_region']}\n"
+                          f"\033[1mAuthor:\033[0m {story['author']}\n"
+                          f"\033[1mDate:\033[0m {formatted_date}\n"
+                          f"\033[1mDetails:\033[0m {story['story_details']}")
                     if story == stories[-1]:
                         print("----------------------------------")
                 except KeyError:
@@ -194,7 +239,7 @@ class Client:
 
         # Finished, print success message
         "----------------------------------"
-        print(f"\n\033[1;32m✔ Finished fetching stories from {len(agencies)} agencies\033[0m\n")
+        print(f"\033[1;32m✔ Finished fetching stories from {len(agencies)} agencies\033[0m\n")
 
     # Post story to news service
     def post_story(self):
@@ -213,7 +258,7 @@ class Client:
 
         # Send post request to /api/stories
         try:
-            response = self.session.post(url=f'http://{self.logged_in_url}/api/stories',
+            response = self.session.post(url=f'https://{self.logged_in_url}/api/stories',
                                          json={'headline': headline, 'category': category, 'region': region,
                                                'details': details})
         except requests.exceptions.RequestException:
@@ -244,7 +289,7 @@ class Client:
 
         # Send delete request to /api/stories/<story_id>
         try:
-            response = self.session.delete(f'http://{self.logged_in_url}/api/stories/{story_key}')
+            response = self.session.delete(f'https://{self.logged_in_url}/api/stories/{story_key}')
         except requests.exceptions.RequestException:
             print(f"\033[1;31m✘ Unable to connect to news service @ {self.logged_in_url}\033[0m\n")
             return
@@ -283,12 +328,21 @@ def main():
         elif command == "list":
             client.list_agencies()
         elif command == "news":
-            switches = {}
+            s = {"-id": None, "-cat": None, "-reg": None, "-date": None}  # Switches for the command
             for arg in args:
                 if "=" in arg:
                     key, value = arg.split("=")
-                    switches[key] = value
-            client.get_stories(**switches)
+                    s[key] = value
+            client.get_stories(agency_id=s["-id"], category=s["-cat"], region=s["-reg"], date=s["-date"])
+        elif command == "help":
+            print("\n\033[1;34mAvailable commands:\033[0m\n"
+                  "list - List all news agencies registered to the directory service\n"
+                  "login <url> - Log in to a news service\n"
+                  "logout - Log out of a news service\n"
+                  "news [-id=<agency_id>] [-cat=<category>] [-reg=<region>] [-date=<date>] - Get news stories\n"
+                  "post - Post a news story (requires login)\n"
+                  "delete <story_key> - Delete a news story (requires login)\n"
+                  "exit - Exit the client\n")
         else:
             print("\033[1;31mError: Invalid command\033[0m")
 
