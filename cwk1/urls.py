@@ -21,6 +21,8 @@ import api.views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/login/', api.views.login),
-    path('api/logout/', api.views.logout),
+    path('api/login', api.views.login),
+    path('api/logout', api.views.logout),
+    path('api/stories', api.views.stories),
+    path('api/stories/<str:story_id>', api.views.stories),
 ]
