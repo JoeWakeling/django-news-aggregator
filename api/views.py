@@ -83,11 +83,11 @@ def stories(request, story_id=None):
             payload["stories"].append({
                 "key": story.id,
                 "headline": story.headline,
-                "category": story.category,
-                "region": story.region,
+                "story_cat": story.category,
+                "story_region": story.region,
                 "author": story.author.user.username,
                 "date": story_date_obj.strftime("%d/%m/%Y"),
-                "details": story.details,
+                "story_details": story.details,
             })
         return HttpResponse(json.dumps(payload), status=200, content_type="application/json")
 
