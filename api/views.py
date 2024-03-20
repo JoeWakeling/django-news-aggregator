@@ -78,9 +78,9 @@ def stories(request, story_id=None):
             return HttpResponse("No stories found", status=404, content_type="text/plain")
 
         # Return the stories as a JSON payload
-        payload = []
+        payload = {"stories": []}
         for story in stories_found:
-            payload.append({
+            payload["stories"].append({
                 "key": story.id,
                 "headline": story.headline,
                 "category": story.category,
