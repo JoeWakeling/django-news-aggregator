@@ -55,7 +55,7 @@ def stories(request, story_id=None):
 
         # Ensure the date field in format dd/mm/yyyy or *
         if story_date == "*":
-            story_date_obj = datetime(year=1, month=1, day=1, hour=0, minute=0, second=0)
+            story_date_obj = datetime.strptime("01/01/1900", "%d/%m/%Y")
         else:
             try:
                 story_date_obj = datetime.strptime(story_date, "%d/%m/%Y")
